@@ -110,11 +110,11 @@ do
 	name="${sample}_${rep}"
 	if [ -e chkpts/${name} ]; then
 		printf "${name} already processed, gathering coverage stats\n"
-		qsub -sync y -N met_${name} -o logs/mCrun_${name}.log MethylC_seq_bismark_singlesample_PE.sh ${ref_dir} ${name} ${samplefilename} ${met} stats &
+		qsub -sync y -N met_${name} -o logs/mCrun_${name}.log MethylC_seq_secondary.sh ${ref_dir} ${name} ${samplefilename} ${met} stats &
 		pids+=("$!")
 	elif [[ ${paired} == "PE" ]] && [ -s fastq/trimmed_${name}_R1.fastq.gz ]; then
 		printf "\nRunning worker script for ${name} with param ${ref_dir} ${name} ${met} trim\n"
-		qsub -sync y -N met_${name} -o logs/mCrun_${name}.log MethylC_seq_bismark_singlesample_PE.sh ${ref_dir} ${name} ${samplefilename} ${met} map &
+		qsub -sync y -N met_${name} -o logs/mCrun_${name}.log MethylC_seq_secondary.sh ${ref_dir} ${name} ${samplefilename} ${met} map &
 		pids+=("$!")
 	elif [[ ${paired} == "PE" ]]; then
 		if [ ! -s fastq/${name}_R1.fastq.gz ]; then
@@ -123,13 +123,7 @@ do
 			cp ${pathtofastq}/${seq}*R2*fastq.gz fastq/${name}_R2.fastq.gz
 		fi
 		printf "\nRunning worker script for ${name} with param ${ref_dir} ${name} ${met} trim\n"
-		qsub -sync y -N met_${name} -o logs/mCrun_${name}.log MethylC_seq_bismark_singlesample_PE.sh ${ref_dir} ${name} ${samplefilename} ${met} trim &
-		pids+=("$!")
-	elif [[ ${paired} == "SE" ]]; then
-		printf "\nCopying fastq for ${name} (${seq} in ${pathtofastq})\n"
-		cp ${pathtofastq}/${seq}*R1*fastq.gz fastq/${name}.fastq.gz
-		printf "\nRunning worker script for ${name}\n"
-		qsub -sync y -N met_${name} -o logs/mCrun_${name}.log MethylC_seq_bismark_singlesample_SE.sh ${ref_dir} ${name} ${samplefilename} ${met} &
+		qsub -sync y -N met_${name} -o logs/mCrun_${name}.log MethylC_seq_secondary.sh ${ref_dir} ${name} ${samplefilename} ${met} trim &
 		pids+=("$!")
 	else 
 		printf "\nIs data PE or SE?\n"
