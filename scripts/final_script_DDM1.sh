@@ -583,6 +583,7 @@ export threads=$NSLOTS
 ################ Figure2 - Violin plots H3.3 at DMRs ########################
 #############################################################################
 
+
 # bwfiles=()
 # labels=()
 # for sample in WT ddm1
@@ -600,10 +601,18 @@ export threads=$NSLOTS
 # done
 # sort -k1,1 -k2,2n DMRs/all_DMRs_bins.bed > DMRs/sorted_DMRs_bins.bed
 # bedtools merge -i DMRs/sorted_DMRs_bins.bed -o distinct -c 7 > DMRs/merged_DMRs_bins.bed
-# multiBigwigSummary BED-file -p ${threads} -b ${bwfiles[@]} --labels ${labels[@]} --BED DMRs/merged_DMRs_bins.bed --outRawCounts DMRs/raw_H3_on_DMRs_bins.tab -o DMRs/H3_on_DMRs_bins.npz
+
+# cat DMRs/merged_DMRs_bins.bed > DMRs/regions_for_violins.bed
+
+# # awk -v OFS="\t" '$4=="CG,CHG,CHH" {print $1,$2,$3}' DMRs/merged_DMRs_bins.bed > DMRs/temp_TE_like.bed
+# # bedtools shuffle -noOverlapping -i DMRs/temp_TE_like.bed -g chrom.sizes -excl DMRs/merged_DMRs_bins.bed | awk -v OFS="\t" '{print $1,$2,$3,"Shuffled"}' > DMRs/shuffled_TE_like.bed
+
+# cat DMRs/shuffled_TE_like.bed >> DMRs/regions_for_violins.bed
+
+# multiBigwigSummary BED-file -p ${threads} -b ${bwfiles[@]} --labels ${labels[@]} --BED DMRs/regions_for_violins.bed --outRawCounts DMRs/H3_on_DMRs_and_rand.tab -o DMRs/H3_on_DMRs_and_rand.npz
 
 # printf "Making violin plots with R\n"
-# sed 's/#//g' DMRs/raw_H3_on_DMRs_bins.tab | sed "s/'//g" > DMRs/raw_H3_on_DMRs_bins.txt
+# sed 's/#//g' DMRs/H3_on_DMRs_and_rand.tab | sed "s/'//g" > DMRs/H3_on_DMRs_and_rand.txt
 
 # Rscript --vanilla - <<-'EOF'
 	# #!/usr/bin/env Rscript
@@ -614,43 +623,45 @@ export threads=$NSLOTS
 	# library(stringr)
 	# library(ggpubr)
 
-	# dmrs<-read.table("DMRs/merged_DMRs_bins.bed", header=FALSE,
+	# dmrs<-read.table("DMRs/regions_for_violins.bed", header=FALSE,
                  # col.names = c("chr","start","end","Context"))
 
-	# tab<-read.table("DMRs/raw_H3_on_DMRs_bins.txt", header=TRUE) %>%
+	# tab<-read.table("DMRs/H3_on_DMRs_and_rand.txt", header=TRUE) %>%
 		# merge(dmrs, by=c("chr","start","end")) %>%
 		# mutate(DMR=paste0(chr,"_",start)) %>%
 		# select(-chr,-start,-end) %>%
 		# gather(Sample,Value,-DMR,-Context)
 	# tab$Sample<-as.factor(tab$Sample)
 	
-	# temp<-read.table("DMRs/raw_H3_on_DMRs_bins.txt", header=TRUE) %>%
+	# temp<-read.table("DMRs/H3_on_DMRs_and_rand.txt", header=TRUE) %>%
 			# merge(dmrs, by=c("chr","start","end")) %>%
 			# rowwise() %>%
-			# mutate(Groups=ifelse(Context=="CG","CG",
+			# mutate(Groups=ifelse(Context=="Shuffled","Random",
+					# ifelse(Context=="CG","CG",
                        # ifelse(Context=="CHG" | Context=="CHH", "non-CG",
                               # ifelse(Context=="CG,CHG", "DDM1 targets",
-                                     # ifelse(Context=="CG,CHG,CHH", "TE-like", "Other"))))) %>%
+                                     # ifelse(Context=="CG,CHG,CHH", "TE-like", "Other")))))) %>%
 			# group_by(Groups) %>%
 			# filter(Groups!="Other") %>%
 			# summarise(Tot=n()) %>%
 			# mutate(Label=paste0(Groups," (n=",Tot,")")) %>%
 			# select(-Tot)
 
-	# tabfin<-mutate(tab, Groups=ifelse(Context=="CG","CG",
+	# tabfin<-mutate(tab, Groups=ifelse(Context=="Shuffled","Random",
+						# ifelse(Context=="CG","CG",
                              # ifelse(Context=="CHG" | Context=="CHH", "non-CG",
                                     # ifelse(Context=="CG,CHG", "DDM1 targets",
-                                           # ifelse(Context=="CG,CHG,CHH", "TE-like", "Other"))))) %>%
+                                           # ifelse(Context=="CG,CHG,CHH", "TE-like", "Other")))))) %>%
 			# merge(temp, by=c("Groups"))
-
-	# tabfin$Groups<-factor(tabfin$Groups, levels=c("CG","non-CG","DDM1 targets","TE-like"))
+				
+	# tabfin$Groups<-factor(tabfin$Groups, levels=c("CG","non-CG","DDM1 targets","TE-like","Random"))
 	# tabfin<-arrange(tabfin, Groups)
 	# tabfin$Label<-factor(tabfin$Label, levels=unique(tabfin$Label))
 
 	# tabfin$Sample<-factor(tabfin$Sample, levels=c("WT_H3.3_vs_Input","ddm1_H3.3_vs_Input"),
                       # labels=c("WT","ddm1"))
 
-	# plot<-ggplot(tabfin, aes(Sample,Value)) +
+	# plot1<-ggplot(tabfin, aes(Sample,Value)) +
 		# geom_violin(alpha=0.3, aes(color=Sample, fill=Sample),
               # draw_quantiles = c(0.5), linewidth=0.5, show.legend=FALSE) +
 		# theme_classic() +
@@ -658,13 +669,14 @@ export threads=$NSLOTS
 		# scale_fill_manual(values = c("WT"="blue","ddm1"="red")) +
 		# labs(x="",y="H3.3 log2(IP/Input)") +
 		# stat_compare_means(method = "t.test", paired=FALSE, size=2,
-                     # label="p.format",ref.group = "WT") +
+                     # label="p.signif",ref.group = "WT") +
 		# facet_grid(~Label) +
 		# theme(strip.text.x = element_text(size = 6))
 	
-	# pdf("figures_manuscript/draft_fin/H3.3_at_DMRs.pdf",width=5,height=5)
-	# print(plot)
+	# pdf("figures_manuscript/revisions/H3.3_at_DMRs_v1.pdf",width=5,height=3)
+	# print(plot1)
 	# dev.off()
+
 # EOF
 
 #############################################################################
